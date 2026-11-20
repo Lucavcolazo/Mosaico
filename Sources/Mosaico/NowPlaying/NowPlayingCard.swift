@@ -10,23 +10,30 @@ struct NowPlayingCard: View {
 
     var body: some View {
         let m = Metrics(s: ctx.scale)
-        let animating = model.isAnimating
-        TimelineView(.animation(minimumInterval: animating ? nil : 0.5,
-                                paused: !(model.isPlaying || animating))) { timeline in
-            let now = timeline.date
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .top, spacing: m(16)) {
-                    cover(m, now: now)
-                    info(m)
-                    Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: m(16)) {
+                // La portada solo se anima durante el cambio de canción.
+                TimelineView(.animation(minimumInterval: nil,
+                                        paused: !model.coverAnimating || !ctx.isVisible)) { tl in
+                    cover(m, now: tl.date)
                 }
-                progress(m, now: now).padding(.top, m(18))
-                controls(m).padding(.top, m(10))
+                info(m)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, m(20))
-            .padding(.top, m(20))
-            .padding(.bottom, m(14))
+            // La barra avanza una vez por segundo, y solo mientras suena y se ve.
+            Group {
+                if model.isPlaying && ctx.isVisible {
+                    TimelineView(.periodic(from: .now, by: 1)) { tl in progress(m, now: tl.date) }
+                } else {
+                    progress(m, now: Date())
+                }
+            }
+            .padding(.top, m(18))
+            controls(m).padding(.top, m(10))
         }
+        .padding(.horizontal, m(20))
+        .padding(.top, m(20))
+        .padding(.bottom, m(14))
         .onPreferenceChange(BarFrameKey.self) { ctx.barFrame = $0 }
         .onChange(of: ctx.pointer) { _, p in
             let inside = p.map { ctx.barFrame.contains($0) } ?? false
@@ -119,7 +126,7 @@ struct NowPlayingCard: View {
         let fraction = model.hasTrack ? pos / duration : 0
         let colors: [SIMD3<Double>] = []   // barra en blanco
         let playing = model.isPlaying
-        let tick = Int(now.timeIntervalSinceReferenceDate * 2)
+        let tick = Int(now.timeIntervalSinceReferenceDate)
         return VStack(spacing: m(6)) {
             Canvas { g, size in
                 ProgressDots.draw(&g, size: size, fraction: fraction, colors: colors,

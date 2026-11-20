@@ -10,7 +10,7 @@ struct CalendarCard: View {
 
     var body: some View {
         let m = Metrics(s: ctx.scale)
-        TimelineView(.animation(minimumInterval: nil, paused: !model.animating)) { timeline in
+        TimelineView(.animation(minimumInterval: nil, paused: !model.animating || !ctx.isVisible)) { timeline in
             let t = timeline.date
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -190,6 +190,7 @@ struct CalendarCard: View {
             Spacer(minLength: m(8))
             ActionButton(title: "Abrir Ajustes", m: m) { CalendarModel.openCalendarSettings() }
         case .granted:
+            let _ = model.minuteTick   // re-dibuja cada minuto ("en 5 min" → "en 4 min")
             if let e = model.nextEvent {
                 RoundedRectangle(cornerRadius: m(1.5))
                     .fill(Color(rgb: e.rgb))

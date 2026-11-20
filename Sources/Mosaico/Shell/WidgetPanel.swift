@@ -12,6 +12,8 @@ final class WidgetContext {
     /// Posición del puntero en coordenadas .global de SwiftUI. La medimos desde AppKit
     /// para que el hover funcione aunque la app no esté activa.
     var pointer: CGPoint?
+    /// false cuando otra ventana tapa por completo el widget: ahí no hace falta animar nada.
+    var isVisible = true
     var scale: CGFloat {
         didSet {
             let clamped = min(max(scale, Self.scaleRange.lowerBound), Self.scaleRange.upperBound)
@@ -120,6 +122,13 @@ final class WidgetPanel: NSPanel {
         NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: self, queue: .main
         ) { [weak self] _ in self?.savePosition() }
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: self, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            let visible = self.occlusionState.contains(.visible)
+            if self.context.isVisible != visible { self.context.isVisible = visible }
+        }
     }
 
     override var canBecomeKey: Bool { true }

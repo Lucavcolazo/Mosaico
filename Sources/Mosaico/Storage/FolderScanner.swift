@@ -54,36 +54,46 @@ enum FolderScanner {
             var childParts: [String] = []
             var currentChild = ""
             var counter = 0
-            for case let url as URL in walker {
-                if token.isCancelled { return result }
-                let level = walker.level
-                if level <= childDepth {
-                    childParts = Array(childParts.prefix(level - 1)) + [url.lastPathComponent]
-                    currentChild = childParts.joined(separator: "/")
-                }
-                guard let values = try? url.resourceValues(forKeys: keySet) else { continue }
-                if values.isDirectory == true {
-                    if !excluded.isEmpty, excluded.contains(url.standardizedFileURL.path) {
-                        walker.skipDescendants()
-                        continue
-                    }
-                    if level <= 4 { currentPath = url.path }
-                    continue
-                }
-                guard values.isRegularFile == true else { continue }
-                let size = Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
-                result.bytes += size
-                result.children[currentChild, default: 0] += size
+            // De a lotes dentro de un autoreleasepool: sin esto, los objetos temporales de
+            // cada archivo (URL, valores) se acumulan hasta el final y la memoria se dispara.
+            var finished = false
+            var cancelled = false
+            while !finished {
+                autoreleasepool {
+                    for _ in 0..<512 {
+                        if token.isCancelled { cancelled = true; finished = true; return }
+                        guard let url = walker.nextObject() as? URL else { finished = true; return }
+                        let level = walker.level
+                        if level <= childDepth {
+                            childParts = Array(childParts.prefix(level - 1)) + [url.lastPathComponent]
+                            currentChild = childParts.joined(separator: "/")
+                        }
+                        guard let values = try? url.resourceValues(forKeys: keySet) else { continue }
+                        if values.isDirectory == true {
+                            if !excluded.isEmpty, excluded.contains(url.standardizedFileURL.path) {
+                                walker.skipDescendants()
+                                continue
+                            }
+                            if level <= 4 { currentPath = url.path }
+                            continue
+                        }
+                        guard values.isRegularFile == true else { continue }
+                        let size = Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
+                        result.bytes += size
+                        result.children[currentChild, default: 0] += size
 
-                counter += 1
-                if counter & 127 == 0 {
-                    let now = Date()
-                    if now.timeIntervalSince(lastReport) > 0.033 {
-                        lastReport = now
-                        progress(result.bytes, currentPath, result.children)
+                        counter += 1
+                        if counter & 127 == 0 {
+                            let now = Date()
+                            if now.timeIntervalSince(lastReport) > 0.033 {
+                                lastReport = now
+                                progress(result.bytes, currentPath, result.children)
+                            }
+                        }
                     }
                 }
             }
+            if cancelled { return result }
         }
         result.readable = !anyExisting || anyReadable
         progress(result.bytes, currentPath, result.children)

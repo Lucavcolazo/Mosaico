@@ -80,16 +80,29 @@ struct WeatherCard: View {
                 }
             }
             Spacer(minLength: 0)
-            TimelineView(.periodic(from: .now, by: 1.0 / 8)) { tl in
-                Canvas { g, size in
-                    WeatherIcon.draw(&g, size: size, sky: model.status == .ready ? model.sky : .cloudy,
-                                     isDay: model.isDay, t: tl.date.timeIntervalSinceReferenceDate,
-                                     dim: model.status != .ready)
-                }
-            }
-            .frame(width: m(Self.iconSize), height: m(Self.iconSize))
+            weatherIcon
+                .frame(width: m(Self.iconSize), height: m(Self.iconSize))
         }
         .frame(height: m(Self.iconSize + 18), alignment: .top)
+    }
+
+    /// Solo se anima si el cielo tiene movimiento y el widget está a la vista (6 cuadros/s).
+    @ViewBuilder private var weatherIcon: some View {
+        let ready = model.status == .ready
+        let sky = ready ? model.sky : .cloudy
+        let isDay = model.isDay
+        if ready && sky.isAnimated && ctx.isVisible {
+            TimelineView(.periodic(from: .now, by: 1.0 / 6)) { tl in
+                Canvas { g, size in
+                    WeatherIcon.draw(&g, size: size, sky: sky, isDay: isDay,
+                                     t: tl.date.timeIntervalSinceReferenceDate, dim: false)
+                }
+            }
+        } else {
+            Canvas { g, size in
+                WeatherIcon.draw(&g, size: size, sky: sky, isDay: isDay, t: 0, dim: !ready)
+            }
+        }
     }
 
     // MARK: - Detalle (o la hora con hover)

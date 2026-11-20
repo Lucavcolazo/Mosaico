@@ -39,6 +39,8 @@ final class CalendarModel {
     private(set) var nextEvent: DayEvent?
     private(set) var revealStart = Date()
     private(set) var animating = false
+    /// Cambia cada minuto para que los textos relativos ("en 5 min") se actualicen.
+    private(set) var minuteTick = 0
     var hoveredIndex: Int? {
         didSet { if hoveredIndex != oldValue { pulse(0.25) } }
     }
@@ -71,10 +73,14 @@ final class CalendarModel {
         observers.append(NotificationCenter.default.addObserver(
             forName: .NSCalendarDayChanged, object: nil, queue: .main
         ) { [weak self] _ in self?.rebuild(animated: false) })
-        // Para el "próximo evento" (en X min) alcanza con refrescar cada minuto.
-        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            self?.updateNextEvent()
+        // "Próximo evento en X min": el texto se refresca cada minuto, pero la consulta a
+        // EventKit solo cada 10 (los cambios de eventos llegan por EKEventStoreChanged).
+        let ticker = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.minuteTick &+= 1
+            if self.minuteTick % 10 == 0 { self.updateNextEvent() }
         }
+        ticker.tolerance = 5
     }
 
     // MARK: - Navegación

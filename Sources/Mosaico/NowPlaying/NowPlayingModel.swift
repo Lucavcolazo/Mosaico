@@ -21,10 +21,12 @@ final class NowPlayingModel {
     /// Un color por columna de la portada, más saturado: tiñe la barra de progreso.
     private(set) var barColors: [SIMD3<Double>] = []
     private(set) var animatingUntil = Date.distantPast
+    /// true mientras dura la animación de cambio de portada.
+    private(set) var coverAnimating = false
     var hoveringCover = false
 
-    @ObservationIgnored private var position: Double = 0
-    @ObservationIgnored private var syncedAt = Date()
+    private var position: Double = 0
+    private var syncedAt = Date()
     @ObservationIgnored private var trackID = ""
     @ObservationIgnored private var artworkURL: URL?
     @ObservationIgnored private let bridge = SpotifyBridge()
@@ -64,8 +66,12 @@ final class NowPlayingModel {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self?.refresh() }
             })
         }
-        // Resincroniza la posición de vez en cuando (por si adelantás desde Spotify).
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
+        // Resincroniza la posición de vez en cuando (por si adelantás desde Spotify), solo mientras
+        // suena: los cambios de play/pausa/canción ya llegan por la notificación de Spotify.
+        timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+            if self?.status == .playing { self?.refresh() }
+        }
+        timer?.tolerance = 3
         refresh()
     }
 
@@ -156,6 +162,11 @@ final class NowPlayingModel {
         barColors = Self.columnColors(coverPixels, n: Self.coverGrid)
         coverChangedAt = Date()
         animatingUntil = Date().addingTimeInterval(1.1)
+        coverAnimating = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) { [weak self] in
+            guard let self, Date() >= self.animatingUntil else { return }
+            self.coverAnimating = false
+        }
     }
 
     static func pixels(of image: NSImage, n: Int) -> [SIMD3<Double>] {

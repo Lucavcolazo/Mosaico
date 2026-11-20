@@ -9,7 +9,7 @@ struct StorageCard: View {
 
     var body: some View {
         let m = Metrics(s: ctx.scale)
-        TimelineView(.animation(minimumInterval: nil, paused: !model.animator.running)) { timeline in
+        TimelineView(.animation(minimumInterval: nil, paused: !model.animator.running || !ctx.isVisible)) { timeline in
             let _ = model.animator.step(now: timeline.date)
             let t = timeline.date.timeIntervalSinceReferenceDate
             CardLayout(m: m, bar: CardBar(source: model, anim: model.animator, t: t, m: m)) {
