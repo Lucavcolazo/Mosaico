@@ -45,6 +45,8 @@ Para verla con datos de ejemplo, sin tocar el disco ni pedir permisos:
 open build/Mosaico.app --args --demo
 ```
 
+El ícono se genera con `swift scripts/make-icon.swift`, que escribe `Support/AppIcon.icns`.
+
 ## Permisos
 
 macOS los pide una sola vez, a medida que cada widget los necesita:

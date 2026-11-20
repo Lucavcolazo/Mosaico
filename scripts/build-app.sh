@@ -47,6 +47,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Mosaico "$APP/Contents/MacOS/Mosaico"
 cp Support/Info.plist "$APP/Contents/Info.plist"
+cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
 codesign --force --sign "$IDENTITY" --keychain "$KEYCHAIN" "$APP"
