@@ -29,13 +29,14 @@ enum MosaicoApp {
 
 /// Los widgets disponibles. Para sumar uno nuevo: agregarlo acá y en `makePanel`.
 enum WidgetKind: String, CaseIterable {
-    case storage, calendar, clock
+    case storage, calendar, clock, nowPlaying
 
     var title: String {
         switch self {
         case .storage: "Almacenamiento"
         case .calendar: "Calendario"
         case .clock: "Reloj"
+        case .nowPlaying: "Música (Spotify)"
         }
     }
 
@@ -44,6 +45,7 @@ enum WidgetKind: String, CaseIterable {
         case .storage: "internaldrive"
         case .calendar: "calendar"
         case .clock: "clock"
+        case .nowPlaying: "music.note"
         }
     }
 }
@@ -54,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let storage: StorageModel
     private let hub: StorageHub
     private var calendarModel: CalendarModel?
+    private var nowPlayingModel: NowPlayingModel?
     private var panels: [WidgetKind: WidgetPanel] = [:]
     private let volumes = VolumeWatcher()
     private var statusItem: NSStatusItem?
@@ -70,7 +73,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
-        for kind in WidgetKind.allCases where isEnabled(kind) { show(kind) }
+        let initial = enabled
+        enabled = initial   // guarda la lista de widgets conocidos
+        for kind in WidgetKind.allCases where initial.contains(kind.rawValue) { show(kind) }
 
         volumes.onAdd = { [weak self] url in self?.hub.addDisk(url) }
         volumes.onRemove = { [weak self] url in self?.hub.removeDisk(url) }
@@ -82,10 +87,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var enabled: Set<String> {
         get {
-            if let list = UserDefaults.standard.stringArray(forKey: enabledKey) { return Set(list) }
-            return Set(WidgetKind.allCases.map(\.rawValue))
+            let all = Set(WidgetKind.allCases.map(\.rawValue))
+            guard let list = UserDefaults.standard.stringArray(forKey: enabledKey) else { return all }
+            // La versión anterior conocía estos tres; los que se sumen después arrancan activados.
+            let known = Set(UserDefaults.standard.stringArray(forKey: "Mosaico.knownWidgets")
+                            ?? ["storage", "calendar", "clock"])
+            return Set(list).union(all.subtracting(known))
         }
-        set { UserDefaults.standard.set(Array(newValue).sorted(), forKey: enabledKey) }
+        set {
+            UserDefaults.standard.set(Array(newValue).sorted(), forKey: enabledKey)
+            UserDefaults.standard.set(WidgetKind.allCases.map(\.rawValue), forKey: "Mosaico.knownWidgets")
+        }
     }
 
     private func isEnabled(_ kind: WidgetKind) -> Bool { enabled.contains(kind.rawValue) }
@@ -114,6 +126,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return WidgetPanel(context: ctx, content: CalendarCard(model: model, ctx: ctx), placement: placement)
         case .clock:
             return WidgetPanel(context: ctx, content: ClockCard(ctx: ctx), placement: placement)
+        case .nowPlaying:
+            let model = nowPlayingModel ?? NowPlayingModel(demo: demo)
+            nowPlayingModel = model
+            model.start()
+            return WidgetPanel(context: ctx, content: NowPlayingCard(model: model, ctx: ctx), placement: placement)
         }
     }
 
@@ -259,6 +276,8 @@ enum Snapshot {
             model.hoveredIndex = hovered.flatMap(Int.init)
             model.skipReveal()
             card = AnyView(CalendarCard(model: model, ctx: ctx))
+        case "music":
+            card = AnyView(NowPlayingCard(model: NowPlayingModel(demo: true), ctx: ctx))
         case "clock":
             var c = DateComponents()
             c.year = 2026; c.month = 11; c.day = 20; c.hour = 0; c.minute = 47; c.second = 32
