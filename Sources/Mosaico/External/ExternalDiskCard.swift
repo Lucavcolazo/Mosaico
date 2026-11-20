@@ -3,6 +3,7 @@ import SwiftUI
 struct ExternalDiskCard: View {
     var model: ExternalDiskModel
     var ctx: WidgetContext
+    var accessory: AnyView? = nil
 
     var body: some View {
         let m = Metrics(s: ctx.scale)
@@ -11,7 +12,7 @@ struct ExternalDiskCard: View {
             let t = timeline.date.timeIntervalSinceReferenceDate
             CardLayout(m: m, bar: CardBar(source: model, anim: model.animator, t: t, m: m)) {
                 CardHeader(used: model.animator.shownTotal,
-                           capacity: model.capacity, busy: model.isBusy, t: t, m: m) { model.rescan() }
+                           capacity: model.capacity, busy: model.isBusy, t: t, m: m, accessory: accessory) { model.rescan() }
             } subtitle: {
                 subtitle(m).subtitleSwap(key: subtitleKey, m: m)
             } legend: {

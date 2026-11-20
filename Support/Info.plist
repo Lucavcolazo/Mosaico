@@ -28,6 +28,10 @@
     <string>Mosaico mide cuánto ocupa tu Escritorio.</string>
     <key>NSDownloadsFolderUsageDescription</key>
     <string>Mosaico mide cuánto ocupa tu carpeta Descargas.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Mosaico muestra tus eventos en el widget de calendario.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Mosaico muestra tus eventos en el widget de calendario.</string>
     <key>NSRemovableVolumesUsageDescription</key>
     <string>Mosaico mide qué carpetas ocupan más lugar en tus discos externos.</string>
 </dict>

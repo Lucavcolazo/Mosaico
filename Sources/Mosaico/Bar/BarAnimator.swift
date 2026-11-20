@@ -42,6 +42,12 @@ final class BarAnimator {
         }
     }
 
+    /// Vuelve la barra a cero para que se llene de nuevo (al cambiar de disco).
+    func replay() {
+        shown = [:]
+        kick()
+    }
+
     /// Salta directo a los valores finales (para capturas).
     func snap() {
         guard let source else { return }

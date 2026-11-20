@@ -32,14 +32,20 @@ private struct CardSizeKey: PreferenceKey {
 // MARK: - Marco de la tarjeta
 
 extension View {
+    /// Fondo, borde, esquina para redimensionar y tamaño del panel. Lo usan todos los widgets.
+    func widgetChrome(ctx: WidgetContext, baseWidth: CGFloat) -> some View {
+        modifier(WidgetChrome(ctx: ctx, baseWidth: baseWidth))
+    }
+
+    /// `widgetChrome` + hover sobre la barra de píxeles y la leyenda.
     func cardChrome(ctx: WidgetContext, source: any BarSource, baseWidth: CGFloat) -> some View {
-        modifier(CardChrome(ctx: ctx, source: source, baseWidth: baseWidth))
+        modifier(BarHover(ctx: ctx, source: source))
+            .widgetChrome(ctx: ctx, baseWidth: baseWidth)
     }
 }
 
-private struct CardChrome: ViewModifier {
+private struct WidgetChrome: ViewModifier {
     let ctx: WidgetContext
-    let source: any BarSource
     let baseWidth: CGFloat
 
     func body(content: Content) -> some View {
@@ -54,10 +60,20 @@ private struct CardChrome: ViewModifier {
             .overlay(alignment: .bottomTrailing) { ResizeGrip(ctx: ctx, baseWidth: baseWidth) }
             .clipShape(shape)
             .environment(\.colorScheme, .dark)
+            .focusEffectDisabled()
             .background(GeometryReader { g in
                 Color.clear.preference(key: CardSizeKey.self, value: g.size)
             })
             .onPreferenceChange(CardSizeKey.self) { ctx.onContentSize?($0) }
+    }
+}
+
+private struct BarHover: ViewModifier {
+    let ctx: WidgetContext
+    let source: any BarSource
+
+    func body(content: Content) -> some View {
+        content
             .onPreferenceChange(RowFramesKey.self) { ctx.rowFrames = $0 }
             .onPreferenceChange(BarFrameKey.self) { ctx.barFrame = $0 }
             .onChange(of: ctx.pointer) { _, p in updateHover(p) }
@@ -119,6 +135,7 @@ struct CardHeader: View {
     let busy: Bool
     let t: Double
     let m: Metrics
+    var accessory: AnyView? = nil
     let rescan: () -> Void
 
     var body: some View {
@@ -132,11 +149,14 @@ struct CardHeader: View {
                 .font(.system(size: m(15)))
                 .foregroundStyle(.white.opacity(0.5))
             Spacer(minLength: 0)
+            if let accessory {
+                accessory.alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + m(5) }
+            }
             Button(action: rescan) {
                 HStack(spacing: m(6)) {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .rotationEffect(.degrees(busy ? (t * 300).truncatingRemainder(dividingBy: 360) : 0))
-                    Text("Reescanear")
+                    if accessory == nil { Text("Reescanear") }
                 }
                 .font(.system(size: m(13), weight: .medium))
                 .foregroundStyle(.white.opacity(busy ? 0.3 : 0.6))

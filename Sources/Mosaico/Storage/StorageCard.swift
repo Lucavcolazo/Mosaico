@@ -3,6 +3,7 @@ import SwiftUI
 struct StorageCard: View {
     var model: StorageModel
     var ctx: WidgetContext
+    var accessory: AnyView? = nil
 
     static let baseWidth: CGFloat = 600
 
@@ -13,7 +14,7 @@ struct StorageCard: View {
             let t = timeline.date.timeIntervalSinceReferenceDate
             CardLayout(m: m, bar: CardBar(source: model, anim: model.animator, t: t, m: m)) {
                 CardHeader(used: model.animator.shownTotal, capacity: model.totalCapacity,
-                           busy: model.isBusy, t: t, m: m) { model.rescan() }
+                           busy: model.isBusy, t: t, m: m, accessory: accessory) { model.rescan() }
             } subtitle: {
                 subtitle(m).subtitleSwap(key: subtitleKey, m: m)
             } legend: {

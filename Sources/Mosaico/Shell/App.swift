@@ -13,9 +13,9 @@ enum MosaicoApp {
         if let out = value(after: "--snapshot") {
             Snapshot.render(
                 to: out,
+                kind: value(after: "--widget") ?? "storage",
                 hovered: value(after: "--hover"),
-                scale: value(after: "--scale").flatMap(Double.init).map { CGFloat($0) } ?? 1,
-                disk: args.contains("--disk")
+                scale: value(after: "--scale").flatMap(Double.init).map { CGFloat($0) } ?? 1
             )
             return
         }
@@ -27,68 +27,111 @@ enum MosaicoApp {
     }
 }
 
+/// Los widgets disponibles. Para sumar uno nuevo: agregarlo acá y en `makePanel`.
+enum WidgetKind: String, CaseIterable {
+    case storage, calendar, clock
+
+    var title: String {
+        switch self {
+        case .storage: "Almacenamiento"
+        case .calendar: "Calendario"
+        case .clock: "Reloj"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .storage: "internaldrive"
+        case .calendar: "calendar"
+        case .clock: "clock"
+        }
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let demo: Bool
     private let storage: StorageModel
-    private var storagePanel: WidgetPanel?
-    private var contexts: [WidgetContext] = []
-    private var disks: [URL: (model: ExternalDiskModel, panel: WidgetPanel)] = [:]
+    private let hub: StorageHub
+    private var calendarModel: CalendarModel?
+    private var panels: [WidgetKind: WidgetPanel] = [:]
     private let volumes = VolumeWatcher()
     private var statusItem: NSStatusItem?
+    private var widgetItems: [WidgetKind: NSMenuItem] = [:]
     private let onTopKey = "Mosaico.onTop"
+    private let enabledKey = "Mosaico.enabledWidgets"
 
     init(demo: Bool) {
+        self.demo = demo
         storage = StorageModel(demo: demo)
+        hub = StorageHub(internalModel: storage)
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let ctx = WidgetContext(id: "storage")
-        contexts.append(ctx)
-        let panel = WidgetPanel(context: ctx, content: StorageCard(model: storage, ctx: ctx)) { size in
-            guard let vf = NSScreen.main?.visibleFrame else { return .zero }
-            return NSPoint(x: vf.maxX - size.width - 28, y: vf.maxY - size.height - 28)
-        }
-        storagePanel = panel
-        panel.applyLevel(onTop: onTop)
-        panel.orderFrontRegardless()
         setupStatusItem()
-        storage.rescan()
+        for kind in WidgetKind.allCases where isEnabled(kind) { show(kind) }
 
-        volumes.onAdd = { [weak self] url in self?.addDisk(url) }
-        volumes.onRemove = { [weak self] url in self?.removeDisk(url) }
-        volumes.onWillRemove = { [weak self] url in self?.disks[url]?.model.cancel() }
+        volumes.onAdd = { [weak self] url in self?.hub.addDisk(url) }
+        volumes.onRemove = { [weak self] url in self?.hub.removeDisk(url) }
+        volumes.onWillRemove = { [weak self] url in self?.hub.willRemoveDisk(url) }
         volumes.start()
     }
 
-    // MARK: - Discos externos
+    // MARK: - Widgets
 
-    private func addDisk(_ url: URL) {
-        guard disks[url] == nil else { return }
-        let model = ExternalDiskModel(volumeURL: url)
-        let uuid = (try? url.resourceValues(forKeys: [.volumeUUIDStringKey]))?.volumeUUIDString ?? model.name
-        let ctx = WidgetContext(id: "disk.\(uuid)")
-        contexts.append(ctx)
-        let panel = WidgetPanel(context: ctx, content: ExternalDiskCard(model: model, ctx: ctx)) { [weak self] size in
-            // La primera vez aparece debajo del widget más bajo.
-            let panels = [self?.storagePanel].compactMap { $0 } + (self?.disks.values.map(\.panel) ?? [])
-            if let lowest = panels.min(by: { $0.frame.minY < $1.frame.minY }) {
-                return NSPoint(x: lowest.frame.minX, y: lowest.frame.minY - 16 - size.height)
-            }
-            guard let vf = NSScreen.main?.visibleFrame else { return .zero }
-            return NSPoint(x: vf.maxX - size.width - 28, y: vf.maxY - size.height - 28)
+    private var enabled: Set<String> {
+        get {
+            if let list = UserDefaults.standard.stringArray(forKey: enabledKey) { return Set(list) }
+            return Set(WidgetKind.allCases.map(\.rawValue))
         }
-        panel.applyLevel(onTop: onTop)
-        panel.orderFrontRegardless()
-        disks[url] = (model, panel)
-        model.rescan()
+        set { UserDefaults.standard.set(Array(newValue).sorted(), forKey: enabledKey) }
     }
 
-    private func removeDisk(_ url: URL) {
-        guard let entry = disks.removeValue(forKey: url) else { return }
-        entry.model.cancel()
-        entry.panel.orderOut(nil)
-        contexts.removeAll { $0 === entry.panel.context }
+    private func isEnabled(_ kind: WidgetKind) -> Bool { enabled.contains(kind.rawValue) }
+
+    private func show(_ kind: WidgetKind) {
+        let panel = panels[kind] ?? makePanel(kind)
+        panels[kind] = panel
+        panel.applyLevel(onTop: onTop)
+        panel.orderFrontRegardless()
+    }
+
+    private func hide(_ kind: WidgetKind) {
+        panels[kind]?.orderOut(nil)
+    }
+
+    private func makePanel(_ kind: WidgetKind) -> WidgetPanel {
+        let ctx = WidgetContext(id: kind.rawValue)
+        let placement: (NSSize) -> NSPoint = { [weak self] size in self?.defaultOrigin(for: size) ?? .zero }
+        switch kind {
+        case .storage:
+            storage.rescan()
+            return WidgetPanel(context: ctx, content: StorageHubView(hub: hub, ctx: ctx), placement: placement)
+        case .calendar:
+            let model = calendarModel ?? CalendarModel(demo: demo)
+            calendarModel = model
+            return WidgetPanel(context: ctx, content: CalendarCard(model: model, ctx: ctx), placement: placement)
+        case .clock:
+            return WidgetPanel(context: ctx, content: ClockCard(ctx: ctx), placement: placement)
+        }
+    }
+
+    /// Primera vez: a la derecha del widget visible más a la derecha (alineado arriba);
+    /// si no entra, debajo del más bajo.
+    private func defaultOrigin(for size: NSSize) -> NSPoint {
+        guard let vf = NSScreen.main?.visibleFrame else { return .zero }
+        let visible = panels.values.filter(\.isVisible)
+        guard let first = visible.first else {
+            return NSPoint(x: vf.minX + 12, y: vf.maxY - size.height - 12)
+        }
+        let top = visible.map(\.frame.maxY).max() ?? first.frame.maxY
+        let right = visible.map(\.frame.maxX).max() ?? first.frame.maxX
+        if right + 16 + size.width <= vf.maxX {
+            return NSPoint(x: right + 16, y: top - size.height)
+        }
+        let lowest = visible.min { $0.frame.minY < $1.frame.minY }!
+        return NSPoint(x: lowest.frame.minX, y: max(vf.minY, lowest.frame.minY - 16 - size.height))
     }
 
     // MARK: - Menú en la barra
@@ -104,14 +147,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        let title = NSMenuItem(title: storage.demo ? "Mosaico (demo)" : "Mosaico", action: nil, keyEquivalent: "")
+        let title = NSMenuItem(title: demo ? "Mosaico (demo)" : "Mosaico", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
         menu.addItem(.separator())
 
-        menu.addItem(item("Volver a escanear", #selector(rescan), "r"))
+        let widgetsItem = NSMenuItem(title: "Widgets", action: nil, keyEquivalent: "")
+        let widgetsMenu = NSMenu()
+        for kind in WidgetKind.allCases {
+            let i = item(kind.title, #selector(toggleWidget(_:)), "")
+            i.representedObject = kind.rawValue
+            i.image = NSImage(systemSymbolName: kind.symbol, accessibilityDescription: nil)
+            i.state = isEnabled(kind) ? .on : .off
+            widgetItems[kind] = i
+            widgetsMenu.addItem(i)
+        }
+        widgetsItem.submenu = widgetsMenu
+        menu.addItem(widgetsItem)
 
-        let sizeItem = NSMenuItem(title: "Tamaño", action: nil, keyEquivalent: "")
+        menu.addItem(item("Volver a escanear discos", #selector(rescan), "r"))
+
+        let sizeItem = NSMenuItem(title: "Tamaño de todos", action: nil, keyEquivalent: "")
         let sizeMenu = NSMenu()
         for (name, value) in [("Pequeño", 0.75), ("Mediano", 1.0), ("Grande", 1.25)] {
             let i = item(name, #selector(setSize(_:)), "")
@@ -140,22 +196,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return i
     }
 
-    @objc private func rescan() {
-        storage.rescan()
-        for d in disks.values { d.model.rescan() }
+    @objc private func toggleWidget(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let kind = WidgetKind(rawValue: raw) else { return }
+        var set = enabled
+        if set.contains(raw) {
+            set.remove(raw)
+            hide(kind)
+        } else {
+            set.insert(raw)
+            show(kind)
+        }
+        enabled = set
+        sender.state = set.contains(raw) ? .on : .off
     }
+
+    @objc private func rescan() { hub.rescanAll() }
 
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let v = sender.representedObject as? Double else { return }
-        for c in contexts { c.scale = CGFloat(v) }
+        for p in panels.values { p.context.scale = CGFloat(v) }
     }
 
     @objc private func toggleOnTop(_ sender: NSMenuItem) {
         let v = !onTop
         UserDefaults.standard.set(v, forKey: onTopKey)
         sender.state = v ? .on : .off
-        storagePanel?.applyLevel(onTop: v)
-        for d in disks.values { d.panel.applyLevel(onTop: v) }
+        for p in panels.values { p.applyLevel(onTop: v) }
     }
 
     @objc private func toggleLogin(_ sender: NSMenuItem) {
@@ -174,24 +240,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quit() { NSApp.terminate(nil) }
 }
 
-/// `Mosaico --snapshot salida.png [--hover id] [--scale 0.8] [--disk]` dibuja un widget con datos demo.
+/// `Mosaico --snapshot salida.png [--widget storage|disk|calendar|clock] [--hover id] [--scale 0.8]`
+/// dibuja un widget con datos demo a un PNG.
 @MainActor
 enum Snapshot {
-    static func render(to path: String, hovered: String?, scale: CGFloat, disk: Bool) {
+    static func render(to path: String, kind: String, hovered: String?, scale: CGFloat) {
         let ctx = WidgetContext(id: "snapshot")
         ctx.scale = scale
         let card: AnyView
-        if disk {
+        switch kind {
+        case "disk":
             let model = ExternalDiskModel.demo()
             model.hoveredID = hovered.map { $0.hasPrefix("_") ? $0 : "f:" + $0 }
             model.animator.snap()
             card = AnyView(ExternalDiskCard(model: model, ctx: ctx))
-        } else {
+        case "calendar":
+            let model = CalendarModel(demo: true)
+            model.hoveredIndex = hovered.flatMap(Int.init)
+            model.skipReveal()
+            card = AnyView(CalendarCard(model: model, ctx: ctx))
+        case "clock":
+            var c = DateComponents()
+            c.year = 2026; c.month = 11; c.day = 20; c.hour = 0; c.minute = 47; c.second = 32
+            let date = Calendar.current.date(from: c)!.addingTimeInterval(0.15)
+            card = AnyView(ClockCard(ctx: ctx, fixedDate: date))
+        default:
             let model = StorageModel(demo: true)
             model.fillDemoInstantly()
             model.hoveredID = hovered
             model.animator.snap()
-            card = AnyView(StorageCard(model: model, ctx: ctx))
+            let hub = StorageHub(internalModel: model)
+            if hovered == nil { hub.attachForSnapshot(ExternalDiskModel.demo()) }
+            card = AnyView(StorageHubView(hub: hub, ctx: ctx))
         }
         let renderer = ImageRenderer(content: card.padding(40).background(Color(white: 0.93)))
         renderer.scale = 2
