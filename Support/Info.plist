@@ -38,6 +38,15 @@
     <string>Mosaico usa tu ubicación aproximada para mostrar el clima.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Mosaico usa tu ubicación aproximada para mostrar el clima.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Mosaico se conecta a tu robot LuckyPy para mostrar sus ojos en vivo.</string>
+    <!-- LuckyPy sirve HTTP plano en una IP de Tailscale (100.x), y ATS no admite
+         excepciones por IP. El resto de las conexiones de Mosaico ya son HTTPS. -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
     <key>NSRemovableVolumesUsageDescription</key>
     <string>Mosaico mide qué carpetas ocupan más lugar en tus discos externos.</string>
 </dict>

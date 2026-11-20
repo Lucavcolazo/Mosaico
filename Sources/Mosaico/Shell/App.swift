@@ -19,6 +19,19 @@ enum MosaicoApp {
             )
             return
         }
+        if args.contains("--mascota-test") {
+            // Prueba la conexión con LuckyPy durante 8 s e imprime lo que llega.
+            let model = MascotaModel()
+            model.start()
+            let end = Date().addingTimeInterval(8)
+            var last = ""
+            while Date() < end {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+                let line = "\(model.host)  estado: \(model.link)  ojos: \(model.lastEyes.count)"
+                if line != last { print(line); last = line }
+            }
+            return
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate(demo: args.contains("--demo"))
         app.delegate = delegate
@@ -29,7 +42,7 @@ enum MosaicoApp {
 
 /// Los widgets disponibles. Para sumar uno nuevo: agregarlo acá y en `makePanel`.
 enum WidgetKind: String, CaseIterable {
-    case storage, calendar, clock, nowPlaying, weather
+    case storage, calendar, clock, nowPlaying, weather, mascota
 
     var title: String {
         switch self {
@@ -38,6 +51,7 @@ enum WidgetKind: String, CaseIterable {
         case .clock: "Reloj"
         case .nowPlaying: "Música (Spotify)"
         case .weather: "Clima"
+        case .mascota: "Mascota (LuckyPy)"
         }
     }
 
@@ -48,6 +62,7 @@ enum WidgetKind: String, CaseIterable {
         case .clock: "clock"
         case .nowPlaying: "music.note"
         case .weather: "cloud.sun"
+        case .mascota: "eyes"
         }
     }
 }
@@ -60,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var calendarModel: CalendarModel?
     private var nowPlayingModel: NowPlayingModel?
     private var weatherModel: WeatherModel?
+    private var mascotaModel: MascotaModel?
     private var panels: [WidgetKind: WidgetPanel] = [:]
     private let volumes = VolumeWatcher()
     private var statusItem: NSStatusItem?
@@ -84,6 +100,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         volumes.onRemove = { [weak self] url in self?.hub.removeDisk(url) }
         volumes.onWillRemove = { [weak self] url in self?.hub.willRemoveDisk(url) }
         volumes.start()
+
+        NotificationCenter.default.addObserver(
+            forName: MascotaModel.needsSetupNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.configureMascota() }
+        }
     }
 
     // MARK: - Widgets
@@ -139,6 +161,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             weatherModel = model
             model.start()
             return WidgetPanel(context: ctx, content: WeatherCard(model: model, ctx: ctx), placement: placement)
+        case .mascota:
+            let model = mascotaModel ?? MascotaModel()
+            mascotaModel = model
+            model.start()
+            return WidgetPanel(context: ctx, content: MascotaCard(model: model, ctx: ctx), placement: placement)
         }
     }
 
@@ -190,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         widgetsItem.submenu = widgetsMenu
         menu.addItem(widgetsItem)
 
+        menu.addItem(item("Dirección de LuckyPy…", #selector(configureMascota), ""))
         menu.addItem(item("Volver a escanear discos", #selector(rescan), "r"))
 
         let sizeItem = NSMenuItem(title: "Tamaño de todos", action: nil, keyEquivalent: "")
@@ -248,6 +276,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func rescan() { hub.rescanAll() }
 
+    @objc private func configureMascota() {
+        let alert = NSAlert()
+        alert.messageText = "Dirección de LuckyPy"
+        alert.informativeText = "Escribí una o más direcciones del robot (host:puerto), separadas por coma. "
+            + "Se prueban en orden: por ejemplo la IP de Tailscale primero y la local como respaldo."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        field.placeholderString = "100.x.y.z:8765, 192.168.1.10:8765"
+        field.stringValue = MascotaModel.hosts.joined(separator: ", ")
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Guardar")
+        alert.addButton(withTitle: "Cancelar")
+        alert.window.initialFirstResponder = field
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        MascotaModel.hosts = MascotaModel.parseHosts(field.stringValue)
+        mascotaModel?.reconfigure()
+    }
+
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let v = sender.representedObject as? Double else { return }
         for p in panels.values { p.context.scale = CGFloat(v) }
@@ -304,6 +350,13 @@ enum Snapshot {
             model.hoveredIndex = hovered.flatMap(Int.init)
             model.skipReveal()
             card = AnyView(CalendarCard(model: model, ctx: ctx))
+        case "mascota":
+            let model = MascotaModel(demo: true)
+            if let path = ProcessInfo.processInfo.environment["MOSAICO_FRAME"],
+               let data = FileManager.default.contents(atPath: path) {
+                model.loadDemo(frameJSON: data)
+            }
+            card = AnyView(MascotaCard(model: model, ctx: ctx))
         case "weather":
             let model = WeatherModel(demo: true)
             model.hoveredHour = hovered.flatMap(Int.init)
