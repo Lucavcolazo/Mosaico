@@ -75,16 +75,6 @@ struct NowPlayingCard: View {
 
     @ViewBuilder private func info(_ m: Metrics) -> some View {
         VStack(alignment: .leading, spacing: m(4)) {
-            HStack(spacing: m(5)) {
-                Circle()
-                    .fill(model.isPlaying ? Color(rgb: [0.12, 0.84, 0.38]) : .white.opacity(0.25))
-                    .frame(width: m(6), height: m(6))
-                Text(statusLabel)
-            }
-            .font(.system(size: m(11), weight: .semibold))
-            .foregroundStyle(.white.opacity(0.4))
-            .padding(.bottom, m(2))
-
             switch model.status {
             case .playing, .paused:
                 Text(model.title)
@@ -112,14 +102,6 @@ struct NowPlayingCard: View {
             }
         }
         .frame(height: m(Self.coverSize), alignment: .topLeading)
-    }
-
-    private var statusLabel: String {
-        switch model.status {
-        case .playing: "SONANDO EN SPOTIFY"
-        case .paused: "EN PAUSA"
-        default: "SPOTIFY"
-        }
     }
 
     private func message(_ text: String, _ m: Metrics) -> some View {
