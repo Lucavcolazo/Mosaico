@@ -29,7 +29,7 @@ enum MosaicoApp {
 
 /// Los widgets disponibles. Para sumar uno nuevo: agregarlo acá y en `makePanel`.
 enum WidgetKind: String, CaseIterable {
-    case storage, calendar, clock, nowPlaying
+    case storage, calendar, clock, nowPlaying, weather
 
     var title: String {
         switch self {
@@ -37,6 +37,7 @@ enum WidgetKind: String, CaseIterable {
         case .calendar: "Calendario"
         case .clock: "Reloj"
         case .nowPlaying: "Música (Spotify)"
+        case .weather: "Clima"
         }
     }
 
@@ -46,6 +47,7 @@ enum WidgetKind: String, CaseIterable {
         case .calendar: "calendar"
         case .clock: "clock"
         case .nowPlaying: "music.note"
+        case .weather: "cloud.sun"
         }
     }
 }
@@ -57,6 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hub: StorageHub
     private var calendarModel: CalendarModel?
     private var nowPlayingModel: NowPlayingModel?
+    private var weatherModel: WeatherModel?
     private var panels: [WidgetKind: WidgetPanel] = [:]
     private let volumes = VolumeWatcher()
     private var statusItem: NSStatusItem?
@@ -131,6 +134,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             nowPlayingModel = model
             model.start()
             return WidgetPanel(context: ctx, content: NowPlayingCard(model: model, ctx: ctx), placement: placement)
+        case .weather:
+            let model = weatherModel ?? WeatherModel(demo: demo)
+            weatherModel = model
+            model.start()
+            return WidgetPanel(context: ctx, content: WeatherCard(model: model, ctx: ctx), placement: placement)
         }
     }
 
@@ -282,6 +290,8 @@ enum Snapshot {
     static func render(to path: String, kind: String, hovered: String?, scale: CGFloat) {
         let ctx = WidgetContext(id: "snapshot")
         ctx.scale = scale
+        // El vidrio necesita el fondo real de la pantalla; para capturas, sólido.
+        Appearance.shared.style = .solid
         let card: AnyView
         switch kind {
         case "disk":
@@ -294,6 +304,10 @@ enum Snapshot {
             model.hoveredIndex = hovered.flatMap(Int.init)
             model.skipReveal()
             card = AnyView(CalendarCard(model: model, ctx: ctx))
+        case "weather":
+            let model = WeatherModel(demo: true)
+            model.hoveredHour = hovered.flatMap(Int.init)
+            card = AnyView(WeatherCard(model: model, ctx: ctx))
         case "music":
             card = AnyView(NowPlayingCard(model: NowPlayingModel(demo: true), ctx: ctx))
         case "clock":

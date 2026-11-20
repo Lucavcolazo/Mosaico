@@ -34,6 +34,10 @@
     <string>Mosaico muestra tus eventos en el widget de calendario.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Mosaico lee qué suena en Spotify y te deja pausar o cambiar de canción desde el widget.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Mosaico usa tu ubicación aproximada para mostrar el clima.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Mosaico usa tu ubicación aproximada para mostrar el clima.</string>
     <key>NSRemovableVolumesUsageDescription</key>
     <string>Mosaico mide qué carpetas ocupan más lugar en tus discos externos.</string>
 </dict>

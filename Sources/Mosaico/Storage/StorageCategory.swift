@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Las categorías en el orden en que aparecen en la barra (izquierda → derecha).
 enum StorageCategory: String, CaseIterable, Identifiable {
-    case apps, developer, photos, movies, documents, music, system, caches, trash
+    case apps, developer, photos, movies, documents, music, appData, system, caches, trash
 
     var id: String { rawValue }
 
@@ -10,7 +10,8 @@ enum StorageCategory: String, CaseIterable, Identifiable {
     static let legendOrder: [StorageCategory] = [
         .apps, .developer, .photos,
         .movies, .documents, .music,
-        .system, .caches, .trash,
+        .appData, .caches, .trash,
+        .system,
     ]
 
     var name: String {
@@ -21,6 +22,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .movies: "Videos"
         case .documents: "Documentos"
         case .music: "Música"
+        case .appData: "Datos de apps"
         case .system: "Sistema"
         case .caches: "Cachés"
         case .trash: "Papelera"
@@ -35,6 +37,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .movies: "film.fill"
         case .documents: "doc.text.fill"
         case .music: "music.note"
+        case .appData: "square.stack.3d.up.fill"
         case .system: "gearshape.fill"
         case .caches: "shippingbox.fill"
         case .trash: "trash.fill"
@@ -50,6 +53,7 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .movies: [0.62, 0.38, 1.00]
         case .documents: [0.20, 0.82, 0.86]
         case .music: [1.00, 0.80, 0.22]
+        case .appData: [0.88, 0.74, 0.54]
         case .system: [0.66, 0.68, 0.72]
         case .caches: [1.00, 0.56, 0.16]
         case .trash: [1.00, 0.27, 0.32]
@@ -79,16 +83,29 @@ enum StorageCategory: String, CaseIterable, Identifiable {
         case .movies: return [h("Movies")]
         case .documents: return [h("Documents"), h("Desktop"), h("Downloads")]
         case .music: return [h("Music")]
+        case .appData: return [h("Library")]
         case .system: return []
         case .caches: return [h("Library/Caches")]
         case .trash: return [h(".Trash")]
         }
     }
 
+    /// Carpetas dentro de `roots` que ya cuentan en otra categoría.
+    var excluded: [URL] {
+        guard self == .appData else { return [] }
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return ["Library/Caches", "Library/Developer", "Library/Android"].map {
+            home.appendingPathComponent($0, isDirectory: true)
+        }
+    }
+
+    /// Para "lo más pesado": en ~/Library interesa un nivel más (p. ej. Application Support/Google).
+    var childDepth: Int { self == .appData ? 2 : 1 }
+
     /// Texto fijo para el hover cuando no hay algo más interesante que decir.
     var blurb: String {
         switch self {
-        case .system: "macOS, datos de apps y espacio purgable."
+        case .system: "macOS, archivos protegidos y espacio purgable."
         case .caches: "Las apps las regeneran cuando las necesitan."
         case .trash: "Cosas que ya borraste."
         default: ""

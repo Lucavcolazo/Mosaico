@@ -75,7 +75,7 @@ final class StorageModel: BarSource {
         if unreadable.contains(c) { return "Sin permiso para leer esta carpeta." }
         if !c.blurb.isEmpty { return c.blurb }
         if let top = largest[c], top.bytes > 50_000_000 {
-            let name = top.name.hasSuffix(".app") ? String(top.name.dropLast(4)) : top.name
+            let name = Self.friendlyName(top.name)
             return "\(name) ocupa \(ByteFormat.gb(top.bytes))."
         }
         return ""
@@ -117,7 +117,8 @@ final class StorageModel: BarSource {
         let order = StorageCategory.allCases.filter { $0 != .system }
         DispatchQueue.global(qos: .utility).async {
             for cat in order {
-                let r = FolderScanner.scan(roots: cat.roots, token: token) { b, path, _ in
+                let r = FolderScanner.scan(roots: cat.roots, excluding: cat.excluded, childDepth: cat.childDepth,
+                                           token: token) { b, path, _ in
                     DispatchQueue.main.async {
                         guard !token.isCancelled else { return }
                         self.bytes[cat] = Double(b)
@@ -166,6 +167,22 @@ final class StorageModel: BarSource {
     }
 
     // MARK: - Limpieza
+
+    /// "Application Support/Google" → "Google (Application Support)", "Xcode.app" → "Xcode".
+    static func friendlyName(_ raw: String) -> String {
+        let parts = raw.split(separator: "/").map(String.init)
+        func clean(_ s: String) -> String { s.hasSuffix(".app") ? String(s.dropLast(4)) : s }
+        guard parts.count >= 2 else { return clean(raw) }
+        let parentNames = ["Mobile Documents": "iCloud Drive", "Containers": "contenedores",
+                           "Group Containers": "contenedores compartidos"]
+        let parent = parentNames[parts[0]] ?? parts[0]
+        var leaf = clean(parts[parts.count - 1])
+        // com.empresa.App → App
+        if leaf.contains("."), leaf.split(separator: ".").count >= 3 {
+            leaf = String(leaf.split(separator: ".").last!)
+        }
+        return "\(leaf) (\(parent))"
+    }
 
     /// Primer clic pide confirmación, el segundo (dentro de 3 s) limpia.
     func requestClear(_ cat: StorageCategory) {
@@ -230,7 +247,7 @@ final class StorageModel: BarSource {
 
     static let demoBytes: [StorageCategory: Double] = [
         .apps: 52.6e9, .developer: 36.3e9, .photos: 58.6e9, .movies: 44.1e9, .documents: 41.7e9,
-        .music: 12.1e9, .system: 34.2e9, .caches: 46.8e9, .trash: 31.4e9,
+        .music: 12.1e9, .appData: 21.9e9, .system: 12.3e9, .caches: 46.8e9, .trash: 31.4e9,
     ]
     static let demoTop: [StorageCategory: TopItem] = [
         .apps: TopItem(name: "Xcode.app", bytes: 12.4e9),
@@ -239,6 +256,7 @@ final class StorageModel: BarSource {
         .movies: TopItem(name: "Grabaciones de pantalla", bytes: 24.6e9),
         .documents: TopItem(name: "Lookbook final.psd", bytes: 3.8e9),
         .music: TopItem(name: "Music", bytes: 11.9e9),
+        .appData: TopItem(name: "Application Support/Google", bytes: 6.2e9),
     ]
     static let demoPaths: [StorageCategory: [String]] = [
         .apps: ["/Applications/Utilities", "/Applications/Xcode.app/Contents", "/Applications/Final Cut Pro.app"],
@@ -247,6 +265,7 @@ final class StorageModel: BarSource {
         .movies: ["~/Movies/Exports", "~/Movies/Grabaciones de pantalla"],
         .documents: ["~/Documents/Impuestos", "~/Desktop/Proyectos", "~/Downloads"],
         .music: ["~/Music/Music/Media.localized"],
+        .appData: ["~/Library/Application Support", "~/Library/Containers", "~/Library/Mobile Documents"],
         .system: ["/Library/Logs", "/private/var/vm"],
         .caches: ["~/Library/Caches/com.spotify.client", "~/Library/Caches/Google", "~/Library/Caches/Homebrew"],
         .trash: ["~/.Trash/Grabación 2026-08-14.mov", "~/.Trash/Exports viejos"],

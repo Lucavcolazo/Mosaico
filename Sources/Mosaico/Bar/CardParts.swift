@@ -224,8 +224,9 @@ struct LegendGrid: View {
     var body: some View {
         let spacing = m(6)
         let colWidth = (cardWidth - 2 * m(22) + 2 * m(8) - 2 * spacing) / 3
+        let rows = max(3, (items.count + 2) / 3)
         VStack(spacing: m(2)) {
-            ForEach(0..<3, id: \.self) { r in
+            ForEach(0..<rows, id: \.self) { r in
                 HStack(spacing: spacing) {
                     ForEach(0..<3, id: \.self) { c in
                         let i = r * 3 + c

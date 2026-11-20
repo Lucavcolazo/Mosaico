@@ -117,7 +117,7 @@ struct NowPlayingCard: View {
         let duration = max(model.duration, 1)
         let pos = model.hasTrack ? model.position(at: now) : 0
         let fraction = model.hasTrack ? pos / duration : 0
-        let colors = model.barColors
+        let colors: [SIMD3<Double>] = []   // barra en blanco
         let playing = model.isPlaying
         let tick = Int(now.timeIntervalSinceReferenceDate * 2)
         return VStack(spacing: m(6)) {
@@ -228,7 +228,7 @@ enum ProgressDots {
         let pitch = size.width / CGFloat(count)
         let dot = min(size.height, pitch * 0.72)
         let lit = fraction * Double(count)
-        let fallback: SIMD3<Double> = [0.9, 0.9, 0.92]
+        let fallback: SIMD3<Double> = [1, 1, 1]
         for i in 0..<count {
             let rect = CGRect(x: CGFloat(i) * pitch + (pitch - dot) / 2, y: (size.height - dot) / 2,
                               width: dot, height: dot)

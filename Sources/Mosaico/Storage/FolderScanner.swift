@@ -22,6 +22,8 @@ enum FolderScanner {
     /// `progress` se llama ~30 veces por segundo como mucho, desde el hilo del escaneo.
     static func scan(
         roots: [URL],
+        excluding: [URL] = [],
+        childDepth: Int = 1,
         token: CancelToken,
         progress: (_ bytes: Int64, _ path: String, _ children: [String: Int64]) -> Void
     ) -> FolderScanResult {
@@ -31,6 +33,7 @@ enum FolderScanner {
         var anyReadable = false
         var lastReport = Date.distantPast
         var currentPath = ""
+        let excluded = Set(excluding.map { $0.standardizedFileURL.path })
 
         for root in roots {
             var isDir: ObjCBool = false
@@ -48,14 +51,22 @@ enum FolderScanner {
                 errorHandler: { _, _ in true }
             ) else { continue }
 
+            var childParts: [String] = []
             var currentChild = ""
             var counter = 0
             for case let url as URL in walker {
                 if token.isCancelled { return result }
                 let level = walker.level
-                if level == 1 { currentChild = url.lastPathComponent }
+                if level <= childDepth {
+                    childParts = Array(childParts.prefix(level - 1)) + [url.lastPathComponent]
+                    currentChild = childParts.joined(separator: "/")
+                }
                 guard let values = try? url.resourceValues(forKeys: keySet) else { continue }
                 if values.isDirectory == true {
+                    if !excluded.isEmpty, excluded.contains(url.standardizedFileURL.path) {
+                        walker.skipDescendants()
+                        continue
+                    }
                     if level <= 4 { currentPath = url.path }
                     continue
                 }

@@ -45,7 +45,7 @@ struct CardBackground: View {
                 .overlay(shape.strokeBorder(.white.opacity(0.08), lineWidth: 1))
         case .glass:
             glass(shape)
-                .overlay(shape.fill(Color.black.opacity(0.16)))
+                .overlay(shape.fill(Color.black.opacity(0.26)))
                 .overlay(shape.strokeBorder(
                     LinearGradient(colors: [.white.opacity(0.28), .white.opacity(0.06)],
                                    startPoint: .top, endPoint: .bottom),
