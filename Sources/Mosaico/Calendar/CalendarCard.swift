@@ -298,7 +298,7 @@ enum CalendarGrid {
             let tag = CGRect(x: rect.minX + 4 * s, y: rect.minY + 3 * s,
                              width: tsize.width + 5 * s, height: tsize.height + 1 * s)
             g.fill(Path(roundedRect: tag, cornerRadius: 3 * s),
-                   with: .color(d.isToday ? Color(rgb: accent, opacity: 0.9 * p) : Color(white: 0.085, opacity: 0.85 * p)))
+                   with: .color(d.isToday ? Color(rgb: accent, opacity: 0.9 * p) : Color.black.opacity(0.42 * p)))
             g.draw(resolved, at: CGPoint(x: tag.midX, y: tag.midY), anchor: .center)
         }
     }

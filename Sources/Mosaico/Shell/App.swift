@@ -194,6 +194,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sizeItem.submenu = sizeMenu
         menu.addItem(sizeItem)
 
+        let styleItem = NSMenuItem(title: "Estilo", action: nil, keyEquivalent: "")
+        let styleMenu = NSMenu()
+        for style in Appearance.Style.allCases {
+            let i = item(style.title, #selector(setStyle(_:)), "")
+            i.representedObject = style.rawValue
+            i.state = Appearance.shared.style == style ? .on : .off
+            styleMenu.addItem(i)
+        }
+        styleItem.submenu = styleMenu
+        menu.addItem(styleItem)
+
         let onTopItem = item("Mostrar encima de las ventanas", #selector(toggleOnTop), "")
         onTopItem.state = onTop ? .on : .off
         menu.addItem(onTopItem)
@@ -232,6 +243,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func setSize(_ sender: NSMenuItem) {
         guard let v = sender.representedObject as? Double else { return }
         for p in panels.values { p.context.scale = CGFloat(v) }
+    }
+
+    @objc private func setStyle(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let style = Appearance.Style(rawValue: raw) else { return }
+        Appearance.shared.style = style
+        for i in sender.menu?.items ?? [] { i.state = (i.representedObject as? String) == raw ? .on : .off }
+        for p in panels.values { p.invalidateShadow() }
     }
 
     @objc private func toggleOnTop(_ sender: NSMenuItem) {

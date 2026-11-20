@@ -51,12 +51,11 @@ private struct WidgetChrome: ViewModifier {
     func body(content: Content) -> some View {
         let s = ctx.scale
         let shape = RoundedRectangle(cornerRadius: 18 * s, style: .continuous)
+        let style = Appearance.shared.style
         content
+            .legibleOnGlass(style != .solid)
             .frame(width: baseWidth * s)
-            .background(
-                shape.fill(Color(white: 0.085))
-                    .overlay(shape.strokeBorder(.white.opacity(0.08), lineWidth: 1))
-            )
+            .background(CardBackground(style: style, radius: 18 * s))
             .overlay(alignment: .bottomTrailing) { ResizeGrip(ctx: ctx, baseWidth: baseWidth) }
             .clipShape(shape)
             .environment(\.colorScheme, .dark)
