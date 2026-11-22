@@ -19,6 +19,18 @@ enum MosaicoApp {
             )
             return
         }
+        if args.contains("--battery-test") {
+            // Imprime lo que lee el widget de batería (Mac + Bluetooth) y sale.
+            let model = BatteryModel()
+            model.start()
+            RunLoop.main.run(until: Date().addingTimeInterval(2))
+            if let m = model.mac { print("Mac: \(m.percent) %  \(model.macStatus(m))  \(model.macDetail(m))") }
+            for d in model.devices {
+                print("\(d.name): " + d.levels.map { "\($0.label.isEmpty ? "" : $0.label + " ")\($0.percent) %" }.joined(separator: "  "))
+            }
+            if model.devices.isEmpty { print("Sin dispositivos Bluetooth con batería conectados") }
+            return
+        }
         if args.contains("--mascota-test") {
             // Prueba la conexión con LuckyPy durante 8 s e imprime lo que llega.
             let model = MascotaModel()
@@ -42,7 +54,7 @@ enum MosaicoApp {
 
 /// Los widgets disponibles. Para sumar uno nuevo: agregarlo acá y en `makePanel`.
 enum WidgetKind: String, CaseIterable {
-    case storage, calendar, clock, nowPlaying, weather, mascota
+    case storage, calendar, clock, nowPlaying, weather, mascota, battery
 
     var title: String {
         switch self {
@@ -52,6 +64,7 @@ enum WidgetKind: String, CaseIterable {
         case .nowPlaying: "Música (Spotify)"
         case .weather: "Clima"
         case .mascota: "Mascota (LuckyPy)"
+        case .battery: "Batería"
         }
     }
 
@@ -63,6 +76,7 @@ enum WidgetKind: String, CaseIterable {
         case .nowPlaying: "music.note"
         case .weather: "cloud.sun"
         case .mascota: "eyes"
+        case .battery: "battery.75percent"
         }
     }
 }
@@ -76,6 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var nowPlayingModel: NowPlayingModel?
     private var weatherModel: WeatherModel?
     private var mascotaModel: MascotaModel?
+    private var batteryModel: BatteryModel?
     private var panels: [WidgetKind: WidgetPanel] = [:]
     private let volumes = VolumeWatcher()
     private var statusItem: NSStatusItem?
@@ -166,6 +181,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             mascotaModel = model
             model.start()
             return WidgetPanel(context: ctx, content: MascotaCard(model: model, ctx: ctx), placement: placement)
+        case .battery:
+            let model = batteryModel ?? BatteryModel(demo: demo)
+            batteryModel = model
+            model.start()
+            return WidgetPanel(context: ctx, content: BatteryCard(model: model, ctx: ctx), placement: placement)
         }
     }
 
@@ -350,6 +370,8 @@ enum Snapshot {
             model.hoveredIndex = hovered.flatMap(Int.init)
             model.skipReveal()
             card = AnyView(CalendarCard(model: model, ctx: ctx))
+        case "battery":
+            card = AnyView(BatteryCard(model: BatteryModel(demo: true), ctx: ctx))
         case "mascota":
             let model = MascotaModel(demo: true)
             if let path = ProcessInfo.processInfo.environment["MOSAICO_FRAME"],
