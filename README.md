@@ -2,7 +2,11 @@
 
 Widgets para el escritorio de macOS con estética de píxeles, hechos en SwiftUI.
 
-<!-- Video de los widgets: arrastralo acá al editar en GitHub -->
+
+
+https://github.com/user-attachments/assets/ca6bff99-9635-454a-95e9-80b26e4df117
+
+
 
 ## Widgets
 
