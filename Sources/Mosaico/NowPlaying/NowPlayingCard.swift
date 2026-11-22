@@ -35,9 +35,11 @@ struct NowPlayingCard: View {
         .padding(.top, m(20))
         .padding(.bottom, m(14))
         .onPreferenceChange(BarFrameKey.self) { ctx.barFrame = $0 }
-        .onChange(of: ctx.pointer) { _, p in
-            let inside = p.map { ctx.barFrame.contains($0) } ?? false
-            if model.hoveringCover != inside { model.hoveringCover = inside }
+        .onAppear {
+            ctx.onPointer("music") { [model, ctx] p in
+                let inside = p.map { ctx.barFrame.contains($0) } ?? false
+                if model.hoveringCover != inside { model.hoveringCover = inside }
+            }
         }
         .onAppear { model.start() }
         .widgetChrome(ctx: ctx, baseWidth: Self.baseWidth)

@@ -11,7 +11,24 @@ final class WidgetContext {
     let id: String
     /// Posición del puntero en coordenadas .global de SwiftUI. La medimos desde AppKit
     /// para que el hover funcione aunque la app no esté activa.
-    var pointer: CGPoint?
+    /// No es observable a propósito: cambia en cada movimiento del mouse y, si SwiftUI la
+    /// observara, recalcularía la tarjeta entera cada vez. Las tarjetas se suscriben con
+    /// `onPointer` y solo tocan su estado cuando el hover cambia de verdad.
+    @ObservationIgnored var pointer: CGPoint? {
+        didSet {
+            let inside = pointer != nil
+            if inside != pointerInside { pointerInside = inside }
+            for handler in pointerHandlers.values { handler(pointer) }
+        }
+    }
+    /// Si el mouse está sobre el widget (cambia solo al entrar o salir).
+    var pointerInside = false
+    @ObservationIgnored private var pointerHandlers: [String: (CGPoint?) -> Void] = [:]
+
+    /// Registra (o reemplaza, por clave) quién quiere enterarse de los movimientos del mouse.
+    func onPointer(_ key: String, _ handler: @escaping (CGPoint?) -> Void) {
+        pointerHandlers[key] = handler
+    }
     /// false cuando otra ventana tapa por completo el widget: ahí no hace falta animar nada.
     var isVisible = true
     var scale: CGFloat {

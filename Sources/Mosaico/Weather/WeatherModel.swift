@@ -20,9 +20,6 @@ enum Sky: Equatable {
         }
     }
 
-    /// Cielos que tienen algo que animar (rayos de sol, estrellas, lluvia…). Nublado queda quieto.
-    var isAnimated: Bool { self != .cloudy }
-
     func title(day: Bool) -> String {
         switch self {
         case .clear: day ? "Despejado" : "Noche despejada"

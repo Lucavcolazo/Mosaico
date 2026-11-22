@@ -34,7 +34,7 @@ struct CalendarCard: View {
             }
         }
         .onPreferenceChange(BarFrameKey.self) { ctx.barFrame = $0 }
-        .onChange(of: ctx.pointer) { _, p in updateHover(p) }
+        .onAppear { ctx.onPointer("calendar") { p in updateHover(p) } }
         .widgetChrome(ctx: ctx, baseWidth: Self.baseWidth)
     }
 

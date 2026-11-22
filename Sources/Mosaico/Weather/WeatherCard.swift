@@ -29,7 +29,7 @@ struct WeatherCard: View {
                 .padding(.vertical, m(12))
         }
         .onPreferenceChange(BarFrameKey.self) { ctx.barFrame = $0 }
-        .onChange(of: ctx.pointer) { _, p in updateHover(p) }
+        .onAppear { ctx.onPointer("weather") { p in updateHover(p) } }
         .onAppear { model.start() }
         .widgetChrome(ctx: ctx, baseWidth: Self.baseWidth)
     }
@@ -86,22 +86,14 @@ struct WeatherCard: View {
         .frame(height: m(Self.iconSize + 18), alignment: .top)
     }
 
-    /// Solo se anima si el cielo tiene movimiento y el widget está a la vista (6 cuadros/s).
-    @ViewBuilder private var weatherIcon: some View {
+    /// Ícono fijo en pixel art (sin animación: no gasta nada en reposo).
+    private var weatherIcon: some View {
         let ready = model.status == .ready
         let sky = ready ? model.sky : .cloudy
         let isDay = model.isDay
-        if ready && sky.isAnimated && ctx.isVisible {
-            TimelineView(.periodic(from: .now, by: 1.0 / 6)) { tl in
-                Canvas { g, size in
-                    WeatherIcon.draw(&g, size: size, sky: sky, isDay: isDay,
-                                     t: tl.date.timeIntervalSinceReferenceDate, dim: false)
-                }
-            }
-        } else {
-            Canvas { g, size in
-                WeatherIcon.draw(&g, size: size, sky: sky, isDay: isDay, t: 0, dim: !ready)
-            }
+        return Canvas { g, size in
+            // t fijo con los rayos del sol "afuera" para que el ícono se vea completo.
+            WeatherIcon.draw(&g, size: size, sky: sky, isDay: isDay, t: 0.4, dim: !ready)
         }
     }
 
@@ -273,7 +265,7 @@ enum WeatherChart {
     }
 }
 
-/// Ícono del clima en pixel art (16×16), animado a 8 cuadros por segundo.
+/// Ícono del clima en pixel art (16×16). Se dibuja fijo (t constante).
 enum WeatherIcon {
     private typealias Pixels = [Int: (SIMD3<Double>, Double)]  // y*16+x → (color, alpha)
 

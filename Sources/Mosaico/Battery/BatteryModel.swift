@@ -54,6 +54,8 @@ final class BatteryModel: @unchecked Sendable {
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private let queue = DispatchQueue(label: "mosaico.battery", qos: .utility)
     @ObservationIgnored private let demo: Bool
+    /// Ciclos y salud cambian muy despacio: se leen como mucho cada 10 minutos.
+    @ObservationIgnored private var healthCache: (cycles: Int?, health: Int?, at: Date)?
 
     init(demo: Bool = false) {
         self.demo = demo
@@ -99,7 +101,11 @@ final class BatteryModel: @unchecked Sendable {
             let charged = d[kIOPSIsChargedKey] as? Bool ?? false
             let minutesKey = charging ? kIOPSTimeToFullChargeKey : kIOPSTimeToEmptyKey
             let minutes = (d[minutesKey] as? Int).flatMap { $0 > 0 ? $0 : nil }
-            let (cycles, health) = Self.smartBattery()
+            if healthCache == nil || Date().timeIntervalSince(healthCache!.at) > 600 {
+                let (c, h) = Self.smartBattery()
+                healthCache = (c, h, Date())
+            }
+            let cycles = healthCache?.cycles, health = healthCache?.health
             found = MacBattery(percent: Int((Double(current) / Double(Swift.max(max, 1)) * 100).rounded()),
                                charging: charging, pluggedIn: plugged, charged: charged,
                                minutes: minutes, cycles: cycles, health: health)

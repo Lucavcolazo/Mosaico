@@ -75,7 +75,7 @@ private struct BarHover: ViewModifier {
         content
             .onPreferenceChange(RowFramesKey.self) { ctx.rowFrames = $0 }
             .onPreferenceChange(BarFrameKey.self) { ctx.barFrame = $0 }
-            .onChange(of: ctx.pointer) { _, p in updateHover(p) }
+            .onAppear { ctx.onPointer("bar") { p in updateHover(p) } }
             .onChange(of: source.isBusy) { _, _ in updateHover(ctx.pointer) }
     }
 
@@ -110,8 +110,8 @@ private struct ResizeGrip: View {
             g.stroke(path, with: .color(.white), style: StrokeStyle(lineWidth: 1.2 * s, lineCap: .round))
         }
         .frame(width: 24 * s, height: 24 * s)
-        .opacity(ctx.pointer != nil || ctx.resizeStartScale != nil ? 0.45 : 0)
-        .animation(.easeOut(duration: 0.2), value: ctx.pointer != nil)
+        .opacity(ctx.pointerInside || ctx.resizeStartScale != nil ? 0.45 : 0)
+        .animation(.easeOut(duration: 0.2), value: ctx.pointerInside)
         .contentShape(Rectangle())
         .highPriorityGesture(
             DragGesture(minimumDistance: 1, coordinateSpace: .global)
